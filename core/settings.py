@@ -135,6 +135,17 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5500")
 
+ACTIVATION_URL_TEMPLATE = os.environ.get(
+    "ACTIVATION_URL_TEMPLATE",
+    FRONTEND_URL + "/pages/auth/activate.html?uid={uid}&token={token}",
+)
+
+REST_FRAMEWORK = {
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500"
 )
