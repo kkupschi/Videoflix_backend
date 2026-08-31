@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "corsheaders",
     "django_rq",
+    "auth_app",
+    "video_app",
 ]
 
 MIDDLEWARE = [
@@ -98,11 +100,13 @@ RQ_QUEUES = {
     }
 }
 
+PASSWORD_VALIDATION_PATH = "django.contrib.auth.password_validation"
+
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": f"{PASSWORD_VALIDATION_PATH}.UserAttributeSimilarityValidator"},
+    {"NAME": f"{PASSWORD_VALIDATION_PATH}.MinimumLengthValidator"},
+    {"NAME": f"{PASSWORD_VALIDATION_PATH}.CommonPasswordValidator"},
+    {"NAME": f"{PASSWORD_VALIDATION_PATH}.NumericPasswordValidator"},
 ]
 
 LANGUAGE_CODE = "en-us"
@@ -116,6 +120,7 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+AUTH_USER_MODEL = "auth_app.CustomUser"
 
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
@@ -130,5 +135,7 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5500")
 
-CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500")
+CORS_ALLOWED_ORIGINS = env_list(
+    "CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500"
+)
 CORS_ALLOW_CREDENTIALS = True
