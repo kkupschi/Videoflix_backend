@@ -1,4 +1,4 @@
-Welcome to Videoflix!
+{% autoescape off %}Welcome to Videoflix!
 
 Thanks for signing up. Please confirm your email address to activate your
 account.
@@ -8,3 +8,4 @@ account.
 If you did not create this account, you can simply ignore this message.
 
 Your Videoflix Team
+{% endautoescape %}

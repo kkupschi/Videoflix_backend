@@ -85,15 +85,61 @@ Der Superuser wird beim ersten Start aus `DJANGO_SUPERUSER_USERNAME`,
 | `FRONTEND_URL` | Basisadresse des Frontends für Links in E Mails |
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | Zugang zu PostgreSQL |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `REDIS_LOCATION` | Zugang zu Redis |
+| `ACTIVATION_URL_TEMPLATE` | Linkvorlage der Aktivierungsmail mit `{uid}` und `{token}` |
 | `EMAIL_BACKEND` | Versandweg, in der Entwicklung die Konsole |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP Zugang |
 | `EMAIL_USE_TLS`, `EMAIL_USE_SSL` | Verschlüsselung des SMTP Versands |
 | `DEFAULT_FROM_EMAIL` | Absenderadresse |
 
+## API
+
+### Authentication
+
+#### `POST /api/register/`
+
+Legt ein neues Konto an. Das Konto bleibt inaktiv, bis es über den Link aus der
+Aktivierungsmail freigeschaltet wurde. Der Mailversand läuft als Hintergrundjob
+über Django RQ, damit die Antwort nicht auf den SMTP Server wartet.
+
+Anfrage
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "confirmed_password": "securepassword"
+}
+```
+
+Antwort `201`
+
+```json
+{
+  "user": { "id": 1, "email": "user@example.com" },
+  "token": "activation_token"
+}
+```
+
+Bei ungültiger Eingabe antwortet der Endpunkt mit `400`. Ob eine Adresse bereits
+vergeben ist, wird bewusst nicht verraten. Alle Eingabefehler nutzen dieselbe
+allgemeine Meldung.
+
+## Tests
+
+Im laufenden Container
+
+```
+docker compose exec web python manage.py test
+```
+
 ## Entwicklungsstand
 
-Das Grundgerüst steht. Die fachlichen Django Apps für Benutzerkonten und für
-Videos folgen, sobald die Endpunktliste eingearbeitet ist.
+| Bereich | Stand |
+| --- | --- |
+| Grundgerüst, Docker, Datenbank, Cache, Worker | fertig |
+| `POST /api/register/` | fertig |
+| übrige Authentication Endpunkte | offen |
+| Video Endpunkte und HLS Konvertierung | offen |
 
 ## Lizenz und Hinweis
 

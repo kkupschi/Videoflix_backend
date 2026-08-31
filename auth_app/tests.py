@@ -8,6 +8,8 @@ from django.urls import reverse
 from .models import CustomUser
 from .utils import send_activation_email
 
+LINK = "http://localhost:5500/activate.html?uid=Mw&token=abc"
+
 VALID_PAYLOAD = {
     "email": "user@example.com",
     "password": "securepassword123",
@@ -76,9 +78,11 @@ class ActivationMailTests(TestCase):
         user = CustomUser.objects.create_user(
             username="user@example.com", email="user@example.com"
         )
-        send_activation_email(user.pk, "http://localhost:5500/activate")
+        send_activation_email(user.pk, LINK)
         self.assertEqual(len(mail.outbox), 1)
         message = mail.outbox[0]
-        self.assertIn("http://localhost:5500/activate", message.body)
-        self.assertIn("http://localhost:5500/activate", message.alternatives[0][0])
+        self.assertIn(LINK, message.body)
+        self.assertNotIn("&amp;", message.body)
+        html_body = message.alternatives[0][0]
+        self.assertIn(LINK.replace("&", "&amp;"), html_body)
         self.assertEqual(message.to, ["user@example.com"])

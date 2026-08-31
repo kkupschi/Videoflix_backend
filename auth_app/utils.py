@@ -47,7 +47,8 @@ def send_activation_email(user_id, activation_url):
 def queue_activation_email(user, token):
     """Hand the activation mail over to the background worker."""
     queue = django_rq.get_queue("default")
-    queue.enqueue(send_activation_email, user.pk, build_activation_url(user, token))
+    activation_url = build_activation_url(user, token)
+    queue.enqueue(send_activation_email, user.pk, activation_url)
 
 
 def build_registration_response(user, token):
