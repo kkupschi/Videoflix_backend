@@ -122,18 +122,50 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "auth_app.CustomUser"
 
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
-)
-EMAIL_HOST = os.environ.get("EMAIL_HOST")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", "True")
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL")
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5500")
+PLACEHOLDER_EMAIL_HOSTS = ("", "smtp.example.com")
+FALLBACK_FROM_EMAIL = "noreply@videoflix.local"
+
+
+def resolve_email_backend():
+    """Write mails to the console while no real SMTP server is set up."""
+    backend = os.environ.get("EMAIL_BACKEND", "")
+    if backend:
+        return backend
+    if EMAIL_HOST in PLACEHOLDER_EMAIL_HOSTS:
+        return "django.core.mail.backends.console.EmailBackend"
+    return "django.core.mail.backends.smtp.EmailBackend"
+
+
+def resolve_from_email():
+    """Ignore the placeholder sender that ships with the env template."""
+    sender = os.environ.get("DEFAULT_FROM_EMAIL", "")
+    return sender if "@" in sender else FALLBACK_FROM_EMAIL
+
+
+EMAIL_BACKEND = resolve_email_backend()
+DEFAULT_FROM_EMAIL = resolve_from_email()
+
+DEFAULT_FRONTEND_URL = "http://localhost:5500"
+
+
+def resolve_frontend_url():
+    """Derive the frontend address from the trusted origins if needed."""
+    configured = os.environ.get("FRONTEND_URL", "")
+    if configured:
+        return configured.rstrip("/")
+    if CSRF_TRUSTED_ORIGINS:
+        return CSRF_TRUSTED_ORIGINS[0].rstrip("/")
+    return DEFAULT_FRONTEND_URL
+
+
+FRONTEND_URL = resolve_frontend_url()
 
 ACTIVATION_URL_TEMPLATE = os.environ.get(
     "ACTIVATION_URL_TEMPLATE",
@@ -147,6 +179,6 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = env_list(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500"
+    "CORS_ALLOWED_ORIGINS", ",".join(CSRF_TRUSTED_ORIGINS)
 )
 CORS_ALLOW_CREDENTIALS = True
