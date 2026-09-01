@@ -1,5 +1,9 @@
 """Views for the authentication endpoints."""
-from rest_framework import status
+from rest_framework.status import (
+    HTTP_201_CREATED,
+    HTTP_400_BAD_REQUEST,
+    HTTP_401_UNAUTHORIZED,
+)
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,14 +11,21 @@ from rest_framework.views import APIView
 from ..utils import (
     ACTIVATION_FAILED,
     ACTIVATION_SUCCESS,
+    REFRESH_INVALID,
+    REFRESH_MISSING,
     activate_user,
     build_login_response,
+    build_refresh_response,
     build_registration_response,
     create_activation_token,
     create_token_pair,
+    error_response,
+    get_refresh_cookie,
     get_user_by_uidb64,
     is_activation_valid,
     queue_activation_email,
+    refresh_access_token,
+    set_access_cookie,
     set_auth_cookies,
 )
 from .serializers import LoginSerializer, RegistrationSerializer
@@ -34,7 +45,7 @@ class RegistrationView(APIView):
         queue_activation_email(user, token)
         return Response(
             build_registration_response(user, token),
-            status=status.HTTP_201_CREATED,
+            status=HTTP_201_CREATED,
         )
 
 
@@ -47,10 +58,8 @@ class ActivationView(APIView):
         """Confirm the token and switch the account to active."""
         user = get_user_by_uidb64(uidb64)
         if not is_activation_valid(user, token):
-            return Response(
-                {"message": ACTIVATION_FAILED},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            body = {"message": ACTIVATION_FAILED}
+            return Response(body, status=HTTP_400_BAD_REQUEST)
         activate_user(user)
         return Response({"message": ACTIVATION_SUCCESS})
 
@@ -68,3 +77,20 @@ class LoginView(APIView):
         refresh, access = create_token_pair(user)
         response = Response(build_login_response(user))
         return set_auth_cookies(response, access, refresh)
+
+
+class TokenRefreshView(APIView):
+    """Issue a new access token based on the refresh token cookie."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """Return a fresh access token and update its cookie."""
+        raw_refresh = get_refresh_cookie(request)
+        if not raw_refresh:
+            return error_response(REFRESH_MISSING, HTTP_400_BAD_REQUEST)
+        access = refresh_access_token(raw_refresh)
+        if access is None:
+            return error_response(REFRESH_INVALID, HTTP_401_UNAUTHORIZED)
+        response = Response(build_refresh_response(access))
+        return set_access_cookie(response, access)

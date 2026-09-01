@@ -1,7 +1,12 @@
 """URL routes for the authentication endpoints."""
 from django.urls import path
 
-from .views import ActivationView, LoginView, RegistrationView
+from .views import (
+    ActivationView,
+    LoginView,
+    RegistrationView,
+    TokenRefreshView,
+)
 
 urlpatterns = [
     path("register/", RegistrationView.as_view(), name="register"),
@@ -11,4 +16,9 @@ urlpatterns = [
         name="activate",
     ),
     path("login/", LoginView.as_view(), name="login"),
+    path(
+        "token/refresh/",
+        TokenRefreshView.as_view(),
+        name="token_refresh",
+    ),
 ]

@@ -7,6 +7,8 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from rest_framework.response import Response
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser
@@ -15,6 +17,9 @@ ACTIVATION_SUBJECT = "Confirm your email"
 ACTIVATION_SUCCESS = "Account successfully activated."
 ACTIVATION_FAILED = "Activation failed."
 LOGIN_SUCCESS = "Login successful"
+REFRESH_SUCCESS = "Token refreshed"
+REFRESH_MISSING = "Refresh token missing."
+REFRESH_INVALID = "Refresh token invalid."
 
 
 def encode_user_id(user):
@@ -124,13 +129,46 @@ def set_token_cookie(response, name, value, lifetime):
     )
 
 
+def set_access_cookie(response, access):
+    """Store the access token in its own cookie."""
+    lifetime = settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+    set_token_cookie(response, settings.JWT_ACCESS_COOKIE, access, lifetime)
+    return response
+
+
+def set_refresh_cookie(response, refresh):
+    """Store the refresh token in its own cookie."""
+    lifetime = settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+    set_token_cookie(response, settings.JWT_REFRESH_COOKIE, refresh, lifetime)
+    return response
+
+
 def set_auth_cookies(response, access, refresh):
     """Attach both token cookies to the given response."""
-    lifetimes = settings.SIMPLE_JWT
-    access_name = settings.JWT_ACCESS_COOKIE
-    refresh_name = settings.JWT_REFRESH_COOKIE
-    set_token_cookie(response, access_name, access,
-                     lifetimes["ACCESS_TOKEN_LIFETIME"])
-    set_token_cookie(response, refresh_name, refresh,
-                     lifetimes["REFRESH_TOKEN_LIFETIME"])
+    set_access_cookie(response, access)
+    set_refresh_cookie(response, refresh)
     return response
+
+
+def get_refresh_cookie(request):
+    """Return the refresh token from the cookie or an empty string."""
+    return request.COOKIES.get(settings.JWT_REFRESH_COOKIE, "")
+
+
+def refresh_access_token(raw_refresh):
+    """Return a new access token or None when the refresh token is bad."""
+    try:
+        refresh = RefreshToken(raw_refresh)
+    except TokenError:
+        return None
+    return str(refresh.access_token)
+
+
+def build_refresh_response(access):
+    """Return the response body that the api documentation defines."""
+    return {"detail": REFRESH_SUCCESS, "access": access}
+
+
+def error_response(message, code):
+    """Return a plain error body with the given status code."""
+    return Response({"detail": message}, status=code)

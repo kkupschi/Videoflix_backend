@@ -129,6 +129,12 @@ class ActivationViewTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(self.user.is_active)
 
+    def test_failure_keeps_the_message_key(self):
+        """Success and failure use the same key, as the endpoint docs do."""
+        response = self.activate(self.uidb64, "invalid-token")
+        self.assertIn("message", response.data)
+        self.assertNotIn("detail", response.data)
+
     def test_broken_uid_is_rejected(self):
         """An id that is not decodable fails instead of raising an error."""
         response = self.activate("not-base64", self.token)
@@ -269,3 +275,60 @@ class CookieAuthenticationTests(TestCase):
         _, access = create_token_pair(self.user)
         request = self.factory.get("/", HTTP_AUTHORIZATION=f"Bearer {access}")
         self.assertIsNone(self.backend.authenticate(request))
+
+
+class TokenRefreshViewTests(TestCase):
+    """Cover the POST /api/token/refresh/ endpoint."""
+
+    def setUp(self):
+        """Provide the endpoint url and an account with a token pair."""
+        self.url = reverse("token_refresh")
+        self.user = CustomUser.objects.create_user(
+            username="user@example.com", email="user@example.com"
+        )
+        self.refresh, self.access = create_token_pair(self.user)
+
+    def refresh_with(self, cookie=None):
+        """Post to the endpoint, optionally carrying a refresh cookie."""
+        if cookie is not None:
+            self.client.cookies["refresh_token"] = cookie
+        return self.client.post(self.url)
+
+    def test_valid_cookie_returns_documented_body(self):
+        """A valid refresh cookie answers with the documented body."""
+        response = self.refresh_with(self.refresh)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["detail"], "Token refreshed")
+        self.assertTrue(response.data["access"])
+
+    def test_valid_cookie_sets_a_new_access_cookie(self):
+        """The renewed access token lands in an HttpOnly cookie."""
+        response = self.refresh_with(self.refresh)
+        cookie = response.cookies["access_token"]
+        self.assertEqual(cookie.value, response.data["access"])
+        self.assertTrue(cookie["httponly"])
+
+    def test_renewed_token_authenticates(self):
+        """The renewed token really identifies the same account."""
+        response = self.refresh_with(self.refresh)
+        request = APIRequestFactory().get("/")
+        request.COOKIES["access_token"] = response.data["access"]
+        user, _ = CookieJWTAuthentication().authenticate(request)
+        self.assertEqual(user, self.user)
+
+    def test_missing_cookie_answers_with_400(self):
+        """Without a refresh cookie the request is incomplete."""
+        response = self.refresh_with()
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("access_token", response.cookies)
+
+    def test_invalid_cookie_answers_with_401(self):
+        """A manipulated refresh token must not produce a new access token."""
+        response = self.refresh_with("kaputter-token")
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("access_token", response.cookies)
+
+    def test_refresh_cookie_stays_untouched(self):
+        """Only the access cookie is renewed, the refresh cookie stays."""
+        response = self.refresh_with(self.refresh)
+        self.assertNotIn("refresh_token", response.cookies)

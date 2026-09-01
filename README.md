@@ -229,6 +229,31 @@ Ein falsches Passwort, eine unbekannte Adresse und ein noch nicht
 freigeschaltetes Konto liefern dieselbe Antwort. Von außen ist damit nicht
 erkennbar, welcher der drei Fälle vorliegt.
 
+### `POST /api/token/refresh/`
+
+Stellt ein neues Zugriffstoken aus, sobald das alte abgelaufen ist. Der Aufruf
+braucht keinen Inhalt, weil der Browser das `refresh_token` Cookie von selbst
+mitschickt.
+
+Antwort `200`
+
+```json
+{
+  "detail": "Token refreshed",
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+| Status | Bedeutung |
+| --- | --- |
+| `200` | Neues `access_token` Cookie ist gesetzt |
+| `400` | Kein `refresh_token` Cookie vorhanden |
+| `401` | Refresh Token abgelaufen oder verfälscht |
+
+Erneuert wird ausschließlich das Zugriffstoken. Das Refresh Cookie bleibt
+unangetastet und behält seine ursprüngliche Laufzeit, sodass die Sitzung nach
+einem Tag zuverlässig endet.
+
 ## Tests
 
 Die Testsuite prüft das Verhalten der Endpunkte gegen die API Dokumentation,
@@ -303,7 +328,8 @@ Anmeldevorgang ohne eigenes Mailkonto nachvollziehen.
 | Registrierung mit Aktivierungsmail | umgesetzt |
 | Freischaltung des Kontos über den Mail Link | umgesetzt |
 | Anmeldung mit Token in HttpOnly Cookies | umgesetzt |
-| Abmeldung, Tokenerneuerung und Passwort zurücksetzen | in Arbeit |
+| Erneuerung des Zugriffstokens | umgesetzt |
+| Abmeldung und Passwort zurücksetzen | in Arbeit |
 | Filmverwaltung und Auslieferung der Streams | in Arbeit |
 | HLS Umwandlung in 480p, 720p und 1080p | in Arbeit |
 
