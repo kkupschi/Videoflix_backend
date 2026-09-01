@@ -6,9 +6,12 @@ from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 from django.utils.http import urlsafe_base64_encode
+from rest_framework.test import APIRequestFactory
+from rest_framework_simplejwt.exceptions import InvalidToken
 
+from .api.authentication import CookieJWTAuthentication
 from .models import CustomUser
-from .utils import encode_user_id, send_activation_email
+from .utils import create_token_pair, encode_user_id, send_activation_email
 
 LINK = "http://localhost:5500/activate.html?uid=Mw&token=abc"
 
@@ -225,3 +228,44 @@ class LoginViewTests(TestCase):
         response = self.login()
         self.assertEqual(response.status_code, 401)
         self.assertNotIn("access_token", response.cookies)
+
+
+class CookieAuthenticationTests(TestCase):
+    """Cover the authentication that reads the token from the cookie."""
+
+    def setUp(self):
+        """Provide an account, a request factory and the class under test."""
+        self.user = CustomUser.objects.create_user(
+            username="user@example.com", email="user@example.com"
+        )
+        self.factory = APIRequestFactory()
+        self.backend = CookieJWTAuthentication()
+
+    def request_with_cookie(self, value=None):
+        """Build a request that optionally carries an access cookie."""
+        request = self.factory.get("/")
+        if value is not None:
+            request.COOKIES["access_token"] = value
+        return request
+
+    def test_valid_cookie_identifies_the_account(self):
+        """A valid token in the cookie resolves to the right account."""
+        _, access = create_token_pair(self.user)
+        user, _ = self.backend.authenticate(self.request_with_cookie(access))
+        self.assertEqual(user, self.user)
+
+    def test_missing_cookie_stays_anonymous(self):
+        """Without a cookie the request is simply not authenticated."""
+        request = self.request_with_cookie()
+        self.assertIsNone(self.backend.authenticate(request))
+
+    def test_broken_token_is_rejected(self):
+        """A manipulated token must not pass as a valid account."""
+        with self.assertRaises(InvalidToken):
+            self.backend.authenticate(self.request_with_cookie("kaputt"))
+
+    def test_header_alone_is_not_enough(self):
+        """A token in the Authorization header is ignored on purpose."""
+        _, access = create_token_pair(self.user)
+        request = self.factory.get("/", HTTP_AUTHORIZATION=f"Bearer {access}")
+        self.assertIsNone(self.backend.authenticate(request))
