@@ -162,3 +162,66 @@ class RegistrationToActivationTests(TestCase):
         """Return the backend url that activates the given account."""
         kwargs = {"uidb64": encode_user_id(user), "token": token}
         return reverse("activate", kwargs=kwargs)
+
+
+class LoginViewTests(TestCase):
+    """Cover the POST /api/login/ endpoint."""
+
+    def setUp(self):
+        """Provide the endpoint url and one active account."""
+        self.url = reverse("login")
+        self.user = CustomUser.objects.create_user(
+            username="user@example.com",
+            email="user@example.com",
+            password="securepassword123",
+        )
+
+    def login(self, email="user@example.com", password="securepassword123"):
+        """Send a login request with the given credentials."""
+        return self.client.post(
+            self.url, {"email": email, "password": password}
+        )
+
+    def test_valid_login_returns_documented_body(self):
+        """A correct login answers with 200 and the documented body."""
+        response = self.login()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["detail"], "Login successful")
+        self.assertEqual(response.data["user"]["id"], self.user.id)
+        self.assertEqual(response.data["user"]["username"], self.user.username)
+
+    def test_valid_login_sets_both_cookies(self):
+        """Both tokens land in cookies that scripts cannot read."""
+        response = self.login()
+        for name in ("access_token", "refresh_token"):
+            cookie = response.cookies[name]
+            self.assertTrue(cookie.value)
+            self.assertTrue(cookie["httponly"])
+            self.assertEqual(cookie["samesite"], "Lax")
+
+    def test_no_token_appears_in_the_body(self):
+        """The tokens must travel in cookies only, never in the body."""
+        body = str(self.login().data)
+        self.assertNotIn("access", body)
+        self.assertNotIn("refresh", body)
+
+    def test_wrong_password_is_rejected_generically(self):
+        """A wrong password answers with 401 and no detail about it."""
+        response = self.login(password="wrongpassword")
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("access_token", response.cookies)
+
+    def test_unknown_email_is_rejected_generically(self):
+        """An unknown address gives the same answer as a wrong password."""
+        wrong_password = self.login(password="wrongpassword")
+        unknown = self.login(email="nobody@example.com")
+        self.assertEqual(unknown.status_code, 401)
+        self.assertEqual(str(unknown.data), str(wrong_password.data))
+
+    def test_inactive_account_cannot_log_in(self):
+        """An account without activation must not receive tokens."""
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        response = self.login()
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn("access_token", response.cookies)

@@ -1,8 +1,10 @@
 """Serializers for the authentication endpoints."""
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 
 from ..models import CustomUser
+from ..utils import authenticate_by_email
 
 GENERIC_INPUT_ERROR = "Please check your entries and try again."
 
@@ -40,3 +42,18 @@ class RegistrationSerializer(serializers.ModelSerializer):
         user.set_password(validated_data["password"])
         user.save()
         return user
+
+
+class LoginSerializer(serializers.Serializer):
+    """Check the credentials of a login request."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        """Attach the account when address and password fit together."""
+        user = authenticate_by_email(attrs["email"], attrs["password"])
+        if user is None:
+            raise AuthenticationFailed(GENERIC_INPUT_ERROR)
+        attrs["user"] = user
+        return attrs

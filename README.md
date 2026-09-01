@@ -186,6 +186,49 @@ Der Aufruf ist absichtlich wiederholbar. Öffnet jemand denselben Link ein
 zweites Mal, etwa weil das Mailprogramm ihn vorab prüft, antwortet der
 Endpunkt weiterhin mit `200` statt mit einem Fehler.
 
+### `POST /api/login/`
+
+Prüft die Zugangsdaten und legt beide Token in Cookies ab. Die Antwort enthält
+bewusst kein Token, weil der Browser die Cookies selbst mitschickt und
+JavaScript sie nicht auslesen kann.
+
+Anfrage
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+```
+
+Antwort `200`
+
+```json
+{
+  "detail": "Login successful",
+  "user": { "id": 1, "username": "user@example.com" }
+}
+```
+
+Gesetzte Cookies
+
+| Name | Inhalt | Gültigkeit |
+| --- | --- | --- |
+| `access_token` | Zugriff auf geschützte Endpunkte | 30 Minuten |
+| `refresh_token` | Erneuerung des Zugriffstokens | 1 Tag |
+
+Beide sind `HttpOnly`, tragen `SameSite=Lax` und werden außerhalb der
+Entwicklung zusätzlich als `Secure` gesetzt.
+
+| Status | Bedeutung |
+| --- | --- |
+| `200` | Angemeldet, beide Cookies sind gesetzt |
+| `401` | Zugangsdaten falsch oder Konto noch nicht freigeschaltet |
+
+Ein falsches Passwort, eine unbekannte Adresse und ein noch nicht
+freigeschaltetes Konto liefern dieselbe Antwort. Von außen ist damit nicht
+erkennbar, welcher der drei Fälle vorliegt.
+
 ## Tests
 
 Die Testsuite prüft das Verhalten der Endpunkte gegen die API Dokumentation,
@@ -243,6 +286,8 @@ Optional, jeweils mit sinnvollem Standard.
 | `CORS_ALLOWED_ORIGINS` | Inhalt von `CSRF_TRUSTED_ORIGINS` |
 | `ACTIVATION_URL_TEMPLATE` | Linkvorlage mit `{uid}` und `{token}` |
 | `EMAIL_BACKEND` | Konsole, solange kein echter SMTP Server hinterlegt ist |
+| `JWT_COOKIE_SECURE` | aktiv, sobald `DEBUG` auf `False` steht |
+| `JWT_COOKIE_SAMESITE` | `Lax`, passend zu Frontend und Backend auf einem Host |
 
 Solange in `EMAIL_HOST` der Platzhalter aus der Vorlage steht, schreibt das
 Projekt ausgehende Mails in das Containerprotokoll, statt eine Verbindung zu
@@ -257,7 +302,8 @@ Anmeldevorgang ohne eigenes Mailkonto nachvollziehen.
 | Containerbetrieb, Datenbank, Cache, Hintergrundarbeiter | umgesetzt |
 | Registrierung mit Aktivierungsmail | umgesetzt |
 | Freischaltung des Kontos über den Mail Link | umgesetzt |
-| Anmeldung, Abmeldung und Passwort zurücksetzen | in Arbeit |
+| Anmeldung mit Token in HttpOnly Cookies | umgesetzt |
+| Abmeldung, Tokenerneuerung und Passwort zurücksetzen | in Arbeit |
 | Filmverwaltung und Auslieferung der Streams | in Arbeit |
 | HLS Umwandlung in 480p, 720p und 1080p | in Arbeit |
 

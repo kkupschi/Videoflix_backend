@@ -8,13 +8,16 @@ from ..utils import (
     ACTIVATION_FAILED,
     ACTIVATION_SUCCESS,
     activate_user,
+    build_login_response,
     build_registration_response,
     create_activation_token,
+    create_token_pair,
     get_user_by_uidb64,
     is_activation_valid,
     queue_activation_email,
+    set_auth_cookies,
 )
-from .serializers import RegistrationSerializer
+from .serializers import LoginSerializer, RegistrationSerializer
 
 
 class RegistrationView(APIView):
@@ -50,3 +53,18 @@ class ActivationView(APIView):
             )
         activate_user(user)
         return Response({"message": ACTIVATION_SUCCESS})
+
+
+class LoginView(APIView):
+    """Authenticate an account and store the tokens in HttpOnly cookies."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """Check the credentials and answer with the token cookies."""
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+        refresh, access = create_token_pair(user)
+        response = Response(build_login_response(user))
+        return set_auth_cookies(response, access, refresh)
