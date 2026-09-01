@@ -165,6 +165,27 @@ Antwort `201`
 | `201` | Konto angelegt, Aktivierungsmail in der Warteschlange |
 | `400` | Eingabe ungültig, allgemeine Meldung ohne weitere Angaben |
 
+### `GET /api/activate/<uidb64>/<token>/`
+
+Schaltet ein Konto frei. Beide Bestandteile stammen aus dem Link der
+Aktivierungsmail. `uidb64` ist die kodierte Kennung des Kontos, `token` ist an
+Kennung, Passwort und Adresse gebunden und läuft nach drei Tagen ab.
+
+Antwort `200`
+
+```json
+{ "message": "Account successfully activated." }
+```
+
+| Status | Bedeutung |
+| --- | --- |
+| `200` | Konto ist aktiv |
+| `400` | Kennung unlesbar, Konto unbekannt oder Token ungültig |
+
+Der Aufruf ist absichtlich wiederholbar. Öffnet jemand denselben Link ein
+zweites Mal, etwa weil das Mailprogramm ihn vorab prüft, antwortet der
+Endpunkt weiterhin mit `200` statt mit einem Fehler.
+
 ## Tests
 
 Die Testsuite prüft das Verhalten der Endpunkte gegen die API Dokumentation,
@@ -235,7 +256,8 @@ Anmeldevorgang ohne eigenes Mailkonto nachvollziehen.
 | --- | --- |
 | Containerbetrieb, Datenbank, Cache, Hintergrundarbeiter | umgesetzt |
 | Registrierung mit Aktivierungsmail | umgesetzt |
-| Übrige Endpunkte der Kontoverwaltung | in Arbeit |
+| Freischaltung des Kontos über den Mail Link | umgesetzt |
+| Anmeldung, Abmeldung und Passwort zurücksetzen | in Arbeit |
 | Filmverwaltung und Auslieferung der Streams | in Arbeit |
 | HLS Umwandlung in 480p, 720p und 1080p | in Arbeit |
 

@@ -1,12 +1,14 @@
 """Tests for the authentication endpoints."""
 from unittest.mock import patch
 
+from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
+from django.utils.http import urlsafe_base64_encode
 
 from .models import CustomUser
-from .utils import send_activation_email
+from .utils import encode_user_id, send_activation_email
 
 LINK = "http://localhost:5500/activate.html?uid=Mw&token=abc"
 
@@ -86,3 +88,77 @@ class ActivationMailTests(TestCase):
         html_body = message.alternatives[0][0]
         self.assertIn(LINK.replace("&", "&amp;"), html_body)
         self.assertEqual(message.to, ["user@example.com"])
+
+
+class ActivationViewTests(TestCase):
+    """Cover the GET /api/activate/<uidb64>/<token>/ endpoint."""
+
+    def setUp(self):
+        """Create an inactive account with a matching activation link."""
+        self.user = CustomUser.objects.create_user(
+            username="user@example.com",
+            email="user@example.com",
+            is_active=False,
+        )
+        self.uidb64 = encode_user_id(self.user)
+        self.token = default_token_generator.make_token(self.user)
+
+    def activate(self, uidb64, token):
+        """Call the activation endpoint with the given link parts."""
+        return self.client.get(
+            reverse("activate", kwargs={"uidb64": uidb64, "token": token})
+        )
+
+    def test_valid_link_activates_the_account(self):
+        """A correct link answers with 200 and the documented message."""
+        response = self.activate(self.uidb64, self.token)
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["message"], "Account successfully activated."
+        )
+        self.assertTrue(self.user.is_active)
+
+    def test_wrong_token_is_rejected(self):
+        """A token that does not belong to the account fails with 400."""
+        response = self.activate(self.uidb64, "invalid-token")
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.user.is_active)
+
+    def test_broken_uid_is_rejected(self):
+        """An id that is not decodable fails instead of raising an error."""
+        response = self.activate("not-base64", self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_user_is_rejected(self):
+        """A well formed id of a missing account fails with 400."""
+        response = self.activate(urlsafe_base64_encode(b"9999"), self.token)
+        self.assertEqual(response.status_code, 400)
+
+    def test_second_call_stays_successful(self):
+        """Opening the link twice must not confuse the frontend."""
+        self.activate(self.uidb64, self.token)
+        response = self.activate(self.uidb64, self.token)
+        self.assertEqual(response.status_code, 200)
+
+
+class RegistrationToActivationTests(TestCase):
+    """Cover the whole path from the registration to the active account."""
+
+    @patch("auth_app.utils.django_rq.get_queue")
+    def test_token_from_registration_activates_the_account(self, get_queue):
+        """The token of the register response unlocks the new account."""
+        response = self.client.post(reverse("register"), VALID_PAYLOAD)
+        user = CustomUser.objects.get(pk=response.data["user"]["id"])
+        self.assertFalse(user.is_active)
+        link = self.activation_link(user, response.data["token"])
+        self.assertEqual(self.client.get(link).status_code, 200)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+    @staticmethod
+    def activation_link(user, token):
+        """Return the backend url that activates the given account."""
+        kwargs = {"uidb64": encode_user_id(user), "token": token}
+        return reverse("activate", kwargs=kwargs)
