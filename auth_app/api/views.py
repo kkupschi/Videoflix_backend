@@ -11,14 +11,17 @@ from rest_framework.views import APIView
 from ..utils import (
     ACTIVATION_FAILED,
     ACTIVATION_SUCCESS,
+    LOGOUT_SUCCESS,
     REFRESH_INVALID,
     REFRESH_MISSING,
     activate_user,
+    blacklist_refresh_token,
     build_login_response,
     build_refresh_response,
     build_registration_response,
     create_activation_token,
     create_token_pair,
+    delete_auth_cookies,
     error_response,
     get_refresh_cookie,
     get_user_by_uidb64,
@@ -94,3 +97,18 @@ class TokenRefreshView(APIView):
             return error_response(REFRESH_INVALID, HTTP_401_UNAUTHORIZED)
         response = Response(build_refresh_response(access))
         return set_access_cookie(response, access)
+
+
+class LogoutView(APIView):
+    """End a session by invalidating the refresh token."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """Blacklist the refresh token and clear both cookies."""
+        raw_refresh = get_refresh_cookie(request)
+        if not raw_refresh:
+            return error_response(REFRESH_MISSING, HTTP_400_BAD_REQUEST)
+        blacklist_refresh_token(raw_refresh)
+        response = Response({"detail": LOGOUT_SUCCESS})
+        return delete_auth_cookies(response)

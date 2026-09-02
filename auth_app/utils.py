@@ -20,6 +20,10 @@ LOGIN_SUCCESS = "Login successful"
 REFRESH_SUCCESS = "Token refreshed"
 REFRESH_MISSING = "Refresh token missing."
 REFRESH_INVALID = "Refresh token invalid."
+LOGOUT_SUCCESS = (
+    "Logout successful! All tokens will be deleted. "
+    "Refresh token is now invalid."
+)
 
 
 def encode_user_id(user):
@@ -172,3 +176,21 @@ def build_refresh_response(access):
 def error_response(message, code):
     """Return a plain error body with the given status code."""
     return Response({"detail": message}, status=code)
+
+
+def blacklist_refresh_token(raw_refresh):
+    """Put the refresh token on the blacklist and report the outcome."""
+    try:
+        RefreshToken(raw_refresh).blacklist()
+    except TokenError:
+        return False
+    return True
+
+
+def delete_auth_cookies(response):
+    """Remove both token cookies from the browser."""
+    for name in (settings.JWT_ACCESS_COOKIE, settings.JWT_REFRESH_COOKIE):
+        response.delete_cookie(
+            name, path="/", samesite=settings.JWT_COOKIE_SAMESITE
+        )
+    return response

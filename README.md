@@ -254,6 +254,34 @@ Erneuert wird ausschließlich das Zugriffstoken. Das Refresh Cookie bleibt
 unangetastet und behält seine ursprüngliche Laufzeit, sodass die Sitzung nach
 einem Tag zuverlässig endet.
 
+### `POST /api/logout/`
+
+Beendet die Sitzung. Der Aufruf braucht keinen Inhalt. Das Refresh Token wird
+auf eine Sperrliste gesetzt und beide Cookies werden im Browser gelöscht.
+
+Antwort `200`
+
+```json
+{
+  "detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."
+}
+```
+
+| Status | Bedeutung |
+| --- | --- |
+| `200` | Sitzung beendet, beide Cookies gelöscht |
+| `400` | Kein `refresh_token` Cookie vorhanden |
+
+Ein bereits unbrauchbares Refresh Token führt trotzdem zu `200`. Wer sich
+abmelden will, soll das auch dann können, wenn sein Token schon abgelaufen ist.
+Die Cookies verschwinden in jedem Fall.
+
+Das Zugriffstoken selbst bleibt bis zum Ablauf technisch gültig, weil ein JSON
+Web Token nicht widerrufbar ist. Praktisch fällt das nicht ins Gewicht, da der
+Browser das Cookie sofort verliert und die Laufzeit auf 30 Minuten begrenzt
+ist. Dauerhaft entwertet wird das Refresh Token, das die Sitzung sonst immer
+weiter verlängern könnte.
+
 ## Tests
 
 Die Testsuite prüft das Verhalten der Endpunkte gegen die API Dokumentation,
@@ -329,7 +357,8 @@ Anmeldevorgang ohne eigenes Mailkonto nachvollziehen.
 | Freischaltung des Kontos über den Mail Link | umgesetzt |
 | Anmeldung mit Token in HttpOnly Cookies | umgesetzt |
 | Erneuerung des Zugriffstokens | umgesetzt |
-| Abmeldung und Passwort zurücksetzen | in Arbeit |
+| Abmeldung mit Sperrliste für das Refresh Token | umgesetzt |
+| Passwort zurücksetzen | in Arbeit |
 | Filmverwaltung und Auslieferung der Streams | in Arbeit |
 | HLS Umwandlung in 480p, 720p und 1080p | in Arbeit |
 

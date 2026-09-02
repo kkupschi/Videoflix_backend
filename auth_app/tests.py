@@ -332,3 +332,56 @@ class TokenRefreshViewTests(TestCase):
         """Only the access cookie is renewed, the refresh cookie stays."""
         response = self.refresh_with(self.refresh)
         self.assertNotIn("refresh_token", response.cookies)
+
+
+class LogoutViewTests(TestCase):
+    """Cover the POST /api/logout/ endpoint."""
+
+    def setUp(self):
+        """Provide the endpoint url and an account with a token pair."""
+        self.url = reverse("logout")
+        self.user = CustomUser.objects.create_user(
+            username="user@example.com", email="user@example.com"
+        )
+        self.refresh, self.access = create_token_pair(self.user)
+
+    def logout_with(self, cookie=None):
+        """Post to the endpoint, optionally carrying a refresh cookie."""
+        if cookie is not None:
+            self.client.cookies["refresh_token"] = cookie
+        return self.client.post(self.url)
+
+    def test_valid_logout_returns_documented_body(self):
+        """A logout with a valid cookie answers with the exact message."""
+        response = self.logout_with(self.refresh)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["detail"],
+            "Logout successful! All tokens will be deleted. "
+            "Refresh token is now invalid.",
+        )
+
+    def test_both_cookies_are_cleared(self):
+        """The browser is told to drop both token cookies."""
+        response = self.logout_with(self.refresh)
+        for name in ("access_token", "refresh_token"):
+            self.assertEqual(response.cookies[name].value, "")
+            self.assertEqual(response.cookies[name]["max-age"], 0)
+
+    def test_refresh_token_stops_working(self):
+        """After the logout the refresh token is really rejected."""
+        self.logout_with(self.refresh)
+        self.client.cookies["refresh_token"] = self.refresh
+        response = self.client.post(reverse("token_refresh"))
+        self.assertEqual(response.status_code, 401)
+
+    def test_missing_cookie_answers_with_400(self):
+        """Without a refresh cookie the request is incomplete."""
+        response = self.logout_with()
+        self.assertEqual(response.status_code, 400)
+
+    def test_invalid_cookie_still_clears_the_session(self):
+        """A broken cookie must not block the user from logging out."""
+        response = self.logout_with("kaputter-token")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.cookies["refresh_token"].value, "")
